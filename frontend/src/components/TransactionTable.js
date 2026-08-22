@@ -6,11 +6,22 @@ function riskColor(score) {
   return "#2ecc71"; // green
 }
 
+function riskEmoji(score) {
+  if (score >= 60) return "🔴";
+  if (score >= 30) return "🟡";
+  return "🟢";
+}
+
 export default function TransactionTable({ transactions }) {
   const [expandedId, setExpandedId] = useState(null);
 
   if (!transactions.length) {
-    return <p className="empty-state">No transactions yet. Simulate one above.</p>;
+    return (
+      <div className="empty-state">
+        <span className="empty-icon">📭</span>
+        <p>No transactions match this filter yet.</p>
+      </div>
+    );
   }
 
   return (
@@ -29,13 +40,13 @@ export default function TransactionTable({ transactions }) {
         {transactions.map((txn) => (
           <React.Fragment key={txn._id}>
             <tr
+              className={`txn-row txn-row-${txn.status}`}
               onClick={() =>
                 setExpandedId(expandedId === txn._id ? null : txn._id)
               }
-              style={{ cursor: "pointer" }}
             >
               <td>{txn.userId}</td>
-              <td>₹{txn.amount}</td>
+              <td>₹{txn.amount.toLocaleString("en-IN")}</td>
               <td>{txn.deviceId}</td>
               <td>{txn.location}</td>
               <td>
@@ -43,15 +54,19 @@ export default function TransactionTable({ transactions }) {
                   className="risk-badge"
                   style={{ backgroundColor: riskColor(txn.riskScore) }}
                 >
-                  {txn.riskScore}
+                  {riskEmoji(txn.riskScore)} {txn.riskScore}
                 </span>
               </td>
-              <td>{txn.status}</td>
+              <td>
+                <span className={`status-pill status-${txn.status}`}>
+                  {txn.status}
+                </span>
+              </td>
             </tr>
             {expandedId === txn._id && (
               <tr className="reason-row">
                 <td colSpan={6}>
-                  <strong>Why flagged:</strong>
+                  <strong>Why this score:</strong>
                   <ul>
                     {txn.riskReasons.length ? (
                       txn.riskReasons.map((reason, i) => <li key={i}>{reason}</li>)

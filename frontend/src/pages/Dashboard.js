@@ -5,8 +5,16 @@ import TransactionTable from "../components/TransactionTable";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
+const FILTERS = [
+  { key: "all", label: "All" },
+  { key: "flagged", label: "🔴 Flagged" },
+  { key: "safe", label: "🟢 Safe" },
+];
+
 export default function Dashboard() {
   const [transactions, setTransactions] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -14,6 +22,8 @@ export default function Dashboard() {
       setTransactions(res.data);
     } catch (err) {
       console.error("Failed to fetch transactions:", err.message);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -26,6 +36,16 @@ export default function Dashboard() {
   };
 
   const flaggedCount = transactions.filter((t) => t.status === "flagged").length;
+  const avgScore = transactions.length
+    ? Math.round(
+        transactions.reduce((sum, t) => sum + t.riskScore, 0) / transactions.length
+      )
+    : 0;
+
+  const filteredTransactions =
+    filter === "all"
+      ? transactions
+      : transactions.filter((t) => t.status === filter);
 
   return (
     <div className="dashboard">
@@ -38,9 +58,34 @@ export default function Dashboard() {
           <span className="stat-number">{flaggedCount}</span>
           <span className="stat-label">Flagged</span>
         </div>
+        <div className="stat-card">
+          <span className="stat-number">{avgScore}</span>
+          <span className="stat-label">Avg Risk Score</span>
+        </div>
       </div>
+
       <TransactionForm onNewTransaction={handleNewTransaction} />
-      <TransactionTable transactions={transactions} />
+
+      <div className="table-header">
+        <h3>Transactions</h3>
+        <div className="filter-tabs">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              className={`filter-tab ${filter === f.key ? "active" : ""}`}
+              onClick={() => setFilter(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="loading-text">Loading transactions…</p>
+      ) : (
+        <TransactionTable transactions={filteredTransactions} />
+      )}
     </div>
   );
 }

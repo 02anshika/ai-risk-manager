@@ -3,6 +3,29 @@ import axios from "axios";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
+const DEMO_LOCATIONS = ["Mumbai", "Bengaluru", "Delhi", "Pune", "Chennai", "Unknown VPN"];
+const DEMO_DEVICES = ["device-A1", "device-B2", "device-C3", "new-unrecognized-device"];
+
+function randomTransaction(highRisk) {
+  const userId = "user-" + Math.floor(100 + Math.random() * 900);
+  if (highRisk) {
+    return {
+      userId,
+      amount: String(Math.floor(50000 + Math.random() * 150000)),
+      deviceId: "new-unrecognized-device",
+      location: "Unknown VPN",
+      // odd hour handled server-side via timestamp; we let it default to now,
+      // so the "high risk" signal here mainly comes from amount + new device
+    };
+  }
+  return {
+    userId,
+    amount: String(Math.floor(200 + Math.random() * 3000)),
+    deviceId: DEMO_DEVICES[Math.floor(Math.random() * (DEMO_DEVICES.length - 1))],
+    location: DEMO_LOCATIONS[Math.floor(Math.random() * (DEMO_LOCATIONS.length - 1))],
+  };
+}
+
 export default function TransactionForm({ onNewTransaction }) {
   const [form, setForm] = useState({
     userId: "",
@@ -15,13 +38,12 @@ export default function TransactionForm({ onNewTransaction }) {
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const submitTransaction = async (payload) => {
     setLoading(true);
     try {
       const res = await axios.post(`${API_URL}/api/transactions`, {
-        ...form,
-        amount: Number(form.amount),
+        ...payload,
+        amount: Number(payload.amount),
       });
       onNewTransaction(res.data);
       setForm({ userId: "", amount: "", deviceId: "", location: "" });
@@ -32,41 +54,73 @@ export default function TransactionForm({ onNewTransaction }) {
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    submitTransaction(form);
+  };
+
+  const handleRandom = (highRisk) => {
+    const txn = randomTransaction(highRisk);
+    setForm(txn);
+    submitTransaction(txn);
+  };
+
   return (
     <form className="txn-form" onSubmit={handleSubmit}>
       <h3>Simulate a Transaction</h3>
-      <input
-        name="userId"
-        placeholder="User ID"
-        value={form.userId}
-        onChange={handleChange}
-        required
-      />
-      <input
-        name="amount"
-        type="number"
-        placeholder="Amount (₹)"
-        value={form.amount}
-        onChange={handleChange}
-        required
-      />
-      <input
-        name="deviceId"
-        placeholder="Device ID"
-        value={form.deviceId}
-        onChange={handleChange}
-        required
-      />
-      <input
-        name="location"
-        placeholder="Location"
-        value={form.location}
-        onChange={handleChange}
-        required
-      />
-      <button type="submit" disabled={loading}>
-        {loading ? "Scoring..." : "Submit Transaction"}
-      </button>
+      <div className="txn-form-row">
+        <input
+          name="userId"
+          placeholder="User ID"
+          value={form.userId}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="amount"
+          type="number"
+          placeholder="Amount (₹)"
+          value={form.amount}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="deviceId"
+          placeholder="Device ID"
+          value={form.deviceId}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="location"
+          placeholder="Location"
+          value={form.location}
+          onChange={handleChange}
+          required
+        />
+        <button type="submit" className="btn-primary" disabled={loading}>
+          {loading ? "Scoring…" : "Submit"}
+        </button>
+      </div>
+      <div className="demo-buttons">
+        <span className="demo-label">Quick demo:</span>
+        <button
+          type="button"
+          className="btn-demo btn-demo-safe"
+          onClick={() => handleRandom(false)}
+          disabled={loading}
+        >
+          🟢 Simulate Normal Transaction
+        </button>
+        <button
+          type="button"
+          className="btn-demo btn-demo-risk"
+          onClick={() => handleRandom(true)}
+          disabled={loading}
+        >
+          🔴 Simulate Risky Transaction
+        </button>
+      </div>
     </form>
   );
 }
