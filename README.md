@@ -72,11 +72,20 @@ npm start
 ```
 
 ## Build Challenges & Technical Obstacles
-_(Fill this in as you build — keep notes here, then copy into the submission form)_
 
--
--
--
+**1. Large dataset breaking the GitHub push**
+After training the Isolation Forest on the real Kaggle "Credit Card Fraud Detection" dataset (~144MB), a routine `git push` was rejected — GitHub enforces a hard 100MB per-file limit, and our commit history still referenced the file even after removing it from the latest commit. Fix: used `git reset --mixed HEAD~2` to unwind the last two commits without losing any working files, added the dataset path to `.gitignore`, and recommitted clean. The trained model artifact (`isolation_forest.joblib`, <1MB) was committed separately so the deployed service always has a ready-to-use model without needing the raw dataset on the server.
+
+**2. AWS security group CIDR misconfiguration**
+While opening inbound ports (3000, 5000, 8000) for the EC2 instance, selecting "Anywhere-IPv4" from the source dropdown's category label — instead of the actual `0.0.0.0/0` CIDR entry beneath it — caused `Instance launch failed: CIDR block Anywhere-IPv4 is malformed`. Amazon Q's inline diagnostics confirmed the fix: the dropdown auto-suggests both a label and a value, and only the literal CIDR notation is valid input.
+
+**3. Docker Compose CLI syntax mismatch on the EC2 host**
+The `docker-compose` (hyphenated, v1) binary used during local development wasn't available on the fresh Ubuntu EC2 instance — the standard repos now ship Compose as a Docker CLI plugin (`docker compose`, v2, space-separated). Deployment initially failed with `command not found` until switching to the v2 syntax.
+
+**4. Rebuilding the ML pipeline mid-flight**
+The system was first validated end-to-end on synthetic data with a heuristic fallback scorer (for cases where the ML microservice was unreachable). Swapping in the real Kaggle dataset required reworking `train.py` to handle the dataset's `Time`/`Amount`/`Class` schema — converting elapsed seconds into an hour-of-day feature and building a balanced sample (all ~492 known fraud rows + a 20,000-row normal sample) so training stayed fast without discarding the rare-event signal that matters most for fraud detection.
+
+**What this taught us:** most of the real friction in shipping an AI system isn't the model — it's the surrounding infrastructure (git history, cloud networking, environment drift between local and prod). The rule-based + ML hybrid scorer, combined with a transparent "why flagged" explanation, was a deliberate choice to keep the system auditable rather than a black box, which matters a lot in a fintech risk context.
 
 ## Team
 Anshika — B.Tech CSE, SISTec GN
