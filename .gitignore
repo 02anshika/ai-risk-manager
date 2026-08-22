@@ -3,7 +3,7 @@ node_modules/
 *.log
 __pycache__/
 *.pyc
-ml-service/models/*.joblib
+
 ml-service/data/transactions.csv
 frontend/build/
 .DS_Store
