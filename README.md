@@ -2,6 +2,8 @@
 
 Built for the **Razorpay Buildathon Hackathon** — Track 2: AI Risk Manager
 
+**Live demo:** http://13.235.81.12:3000 — deployed on AWS EC2, try it yourself, no setup needed.
+
 ## What this is
 
 A payment platform like Razorpay handles an insane number of transactions every second, and there's no realistic way for a human to review each one for fraud. Most rule-based fraud systems end up doing one of two things badly — either they miss real fraud because the rules are too loose, or they annoy genuine customers by blocking them because the rules are too strict.
@@ -48,6 +50,30 @@ The two scores get combined into a final number, and every flagged transaction s
 ## Tech stack
 
 Node.js, Express, MongoDB, React, Python, FastAPI, scikit-learn, Docker, AWS EC2
+
+## Try it yourself
+
+The dashboard has two "quick demo" buttons that generate realistic transactions instantly — no typing needed. Or use these two examples manually:
+
+**A normal transaction (should come back safe, low score):**
+
+| Field | Value |
+|---|---|
+| User ID | `user-101` |
+| Amount | `1500` |
+| Device ID | `device-A1` |
+| Location | `Mumbai` |
+
+**A risky transaction (should get flagged, high score):**
+
+| Field | Value |
+|---|---|
+| User ID | `user-202` |
+| Amount | `120000` |
+| Device ID | `new-device-xyz` |
+| Location | `Unknown VPN` |
+
+Click on any submitted row to expand it and see the exact reasons behind the score.
 
 ## Running it locally
 
