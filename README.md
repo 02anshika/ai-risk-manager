@@ -1,46 +1,59 @@
-# AI Risk Manager — Transaction Risk Scanner
+# AI Risk Manager
 
-Built for **Razorpay Buildathon Hackathon** — Track 2: AI Risk Manager
+Built for the **Razorpay Buildathon Hackathon** — Track 2: AI Risk Manager
 
-## Problem
-Payment platforms process thousands of transactions per second. Manually reviewing each one for fraud is impossible, and rigid rule-based systems either miss sophisticated fraud or flag too many legitimate transactions.
+## What this is
 
-## Solution
-A real-time transaction risk scoring system that combines:
-1. **Rule-based checks** (amount thresholds, time-of-day anomalies, velocity/frequency of transactions, new device/location)
-2. **ML anomaly detection** (Isolation Forest trained on transaction patterns)
-3. **Explainable output** — every flagged transaction shows *why* it was flagged, not just a black-box score
+A payment platform like Razorpay handles an insane number of transactions every second, and there's no realistic way for a human to review each one for fraud. Most rule-based fraud systems end up doing one of two things badly — either they miss real fraud because the rules are too loose, or they annoy genuine customers by blocking them because the rules are too strict.
+
+I wanted to try something in between: a system that scores every transaction in real time using both hard rules *and* a machine learning model, and — this part mattered a lot to me — actually explains *why* it flagged something instead of just spitting out a number. In fintech especially, a black-box "trust me" score isn't good enough.
+
+So that's what this is. You feed it a transaction (amount, user, device, location), and it comes back with a risk score from 0–100, a safe/flagged status, and a plain-English reason for the score.
+
+## How the scoring actually works
+
+It's two systems working together:
+
+1. **Rule-based checks** — is the amount unusually high? Did this happen at 2–5 AM? Has this user made several transactions in the last few minutes (velocity check)? Is this a device we haven't seen from them before?
+2. **An ML model** — specifically an Isolation Forest, trained on the real Kaggle "Credit Card Fraud Detection" dataset (284,807 real transactions, 492 of them actual fraud). It looks for transactions that don't fit the normal pattern.
+
+The two scores get combined into a final number, and every flagged transaction shows exactly which rules fired and why — no black box.
 
 ## Architecture
 
 ```
-┌─────────────┐      ┌──────────────┐      ┌─────────────────┐
-│   React     │─────▶│   Node.js    │─────▶│  Python (FastAPI)│
-│  Dashboard  │◀─────│   Express    │◀─────│   ML Risk Engine │
-└─────────────┘      └──────┬───────┘      └─────────────────┘
-                             │
-                             ▼
-                      ┌─────────────┐
-                      │  MongoDB    │
-                      └─────────────┘
+             ┌──────────────────────┐
+             │   React Dashboard    │
+             └──────────────────────┘
+                         │
+                         ▼
+             ┌──────────────────────┐
+             │  Node.js + Express   │
+             │    (rule engine)     │
+             └──────────────────────┘
+                         │
+            ┌────────────┴─────────────┐
+            ▼                          ▼
+┌──────────────────────┐   ┌──────────────────────┐
+│    Python FastAPI    │   │       MongoDB        │
+│   (ML risk engine)   │   │ (transaction store)  │
+└──────────────────────┘   └──────────────────────┘
 ```
 
-- **Frontend (React)**: Dashboard showing transactions with color-coded risk scores
-- **Backend (Node/Express)**: API layer, stores transactions, orchestrates rule engine + calls ML service
-- **ML Service (Python/FastAPI)**: Isolation Forest model for anomaly scoring
-- **MongoDB**: Transaction data store
+- **Frontend (React)** — dashboard with a live transaction feed, color-coded risk scores, and quick-demo buttons for simulating normal/risky transactions
+- **Backend (Node/Express)** — API layer, runs the rule engine, calls the ML service, stores everything
+- **ML Service (Python/FastAPI)** — the Isolation Forest model, served as its own microservice
+- **MongoDB** — transaction store
 
-## Tech Stack
+## Tech stack
+
 Node.js, Express, MongoDB, React, Python, FastAPI, scikit-learn, Docker, AWS EC2
 
-## Local Setup
+## Running it locally
 
 ```bash
-# Clone
-git clone <your-repo-url>
+git clone <this-repo-url>
 cd ai-risk-manager
-
-# Run everything with Docker Compose
 docker-compose up --build
 ```
 
@@ -48,7 +61,9 @@ docker-compose up --build
 - Backend API: http://localhost:5000
 - ML Service: http://localhost:8000
 
-## Manual Setup (without Docker)
+If you want to retrain the model yourself, download the Kaggle "Credit Card Fraud Detection" dataset, drop `creditcard.csv` into `ml-service/data/`, then run `python train.py` inside the ml-service container.
+
+## Manual setup (without Docker)
 
 **Backend:**
 ```bash
@@ -71,21 +86,20 @@ npm install
 npm start
 ```
 
-## Build Challenges & Technical Obstacles
+## Build challenges — the actual "what broke at 2 AM" list
 
-**1. Large dataset breaking the GitHub push**
-After training the Isolation Forest on the real Kaggle "Credit Card Fraud Detection" dataset (~144MB), a routine `git push` was rejected — GitHub enforces a hard 100MB per-file limit, and our commit history still referenced the file even after removing it from the latest commit. Fix: used `git reset --mixed HEAD~2` to unwind the last two commits without losing any working files, added the dataset path to `.gitignore`, and recommitted clean. The trained model artifact (`isolation_forest.joblib`, <1MB) was committed separately so the deployed service always has a ready-to-use model without needing the raw dataset on the server.
+I'll be honest, none of these were huge conceptual problems — they were all the kind of small, dumb infrastructure things that eat an entire evening if you don't know what to look for.
 
-**2. AWS security group CIDR misconfiguration**
-While opening inbound ports (3000, 5000, 8000) for the EC2 instance, selecting "Anywhere-IPv4" from the source dropdown's category label — instead of the actual `0.0.0.0/0` CIDR entry beneath it — caused `Instance launch failed: CIDR block Anywhere-IPv4 is malformed`. Amazon Q's inline diagnostics confirmed the fix: the dropdown auto-suggests both a label and a value, and only the literal CIDR notation is valid input.
+**The dataset that wouldn't push.** After training on the real Kaggle data, I went to push my code and GitHub just... rejected it. Turned out `creditcard.csv` was 144MB, and GitHub caps individual files at 100MB. Even after I removed it from my latest commit, the push still failed — because it was still sitting in an earlier commit's history. Had to `git reset --mixed HEAD~2` to unwind the last two commits without losing my actual code changes, add the dataset to `.gitignore`, and recommit clean. The trained model itself (`isolation_forest.joblib`) is tiny — under 1MB — so that's what's actually committed. The raw dataset never needs to touch the deployed server.
 
-**3. Docker Compose CLI syntax mismatch on the EC2 host**
-The `docker-compose` (hyphenated, v1) binary used during local development wasn't available on the fresh Ubuntu EC2 instance — the standard repos now ship Compose as a Docker CLI plugin (`docker compose`, v2, space-separated). Deployment initially failed with `command not found` until switching to the v2 syntax.
+**"Anywhere-IPv4" is not a CIDR block.** Setting up the AWS security group, I needed to open ports 3000/5000/8000 to the world. The source dropdown showed a suggestion list with a category header "Anywhere-IPv4" sitting right above the actual value `0.0.0.0/0`. I clicked the header. AWS's error was blunt: `CIDR block Anywhere-IPv4 is malformed`. Lesson: the label and the value are not the same clickable thing.
 
-**4. Rebuilding the ML pipeline mid-flight**
-The system was first validated end-to-end on synthetic data with a heuristic fallback scorer (for cases where the ML microservice was unreachable). Swapping in the real Kaggle dataset required reworking `train.py` to handle the dataset's `Time`/`Amount`/`Class` schema — converting elapsed seconds into an hour-of-day feature and building a balanced sample (all ~492 known fraud rows + a 20,000-row normal sample) so training stayed fast without discarding the rare-event signal that matters most for fraud detection.
+**`docker-compose` vs `docker compose`.** Worked fine locally. On the fresh Ubuntu EC2 instance, `docker-compose` (hyphenated, v1) wasn't installed — modern Ubuntu ships Compose as a plugin, invoked as `docker compose` (space, v2). Small syntax difference, whole command not found until I caught it.
 
-**What this taught us:** most of the real friction in shipping an AI system isn't the model — it's the surrounding infrastructure (git history, cloud networking, environment drift between local and prod). The rule-based + ML hybrid scorer, combined with a transparent "why flagged" explanation, was a deliberate choice to keep the system auditable rather than a black box, which matters a lot in a fintech risk context.
+**The disk filled up and MongoDB quietly vanished from the network.** This one was the most confusing. Everything was deployed and working, then a day later transactions started failing with `getaddrinfo EAI_AGAIN mongo` — the backend couldn't resolve the MongoDB hostname anymore. `docker compose ps` showed all four containers as "Up." Turned out the EC2 instance's 6.7GB disk had filled up to 100% from accumulated Docker build layers, and in that state Docker had silently failed to attach the mongo container to the network on the last restart — it just wasn't in the network's container list at all. Running `docker builder prune -a -f` freed up about 1.9GB, and a clean `docker compose down && docker compose up -d` brought everything back onto the same network correctly. The actual database volume was never touched, so no data was lost — just a scary hour of debugging a "why does everything say it's running but nothing works" situation.
+
+**What all of this actually taught me:** the model was, honestly, the easy part. scikit-learn does the hard math for you. What eats real time when you're shipping an AI system is everything *around* the model — git hygiene with large files, cloud networking quirks, disk management on a small instance, and the gap between "works on my machine" and "works after I `git pull` on a fresh server." The rule-based + ML hybrid, and the explainability on every flagged transaction, were deliberate choices — in a fintech risk context, I think a system nobody can audit is almost as risky as no system at all.
 
 ## Team
+
 Anshika — B.Tech CSE, SISTec GN
