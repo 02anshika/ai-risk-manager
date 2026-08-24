@@ -14,8 +14,6 @@ function randomTransaction(highRisk) {
       amount: String(Math.floor(50000 + Math.random() * 150000)),
       deviceId: "new-unrecognized-device",
       location: "Unknown VPN",
-      // odd hour handled server-side via timestamp; we let it default to now,
-      // so the "high risk" signal here mainly comes from amount + new device
     };
   }
   return {
@@ -38,12 +36,13 @@ export default function TransactionForm({ onNewTransaction }) {
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  const submitTransaction = async (payload) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
     try {
       const res = await axios.post(`${API_URL}/api/transactions`, {
-        ...payload,
-        amount: Number(payload.amount),
+        ...form,
+        amount: Number(form.amount),
       });
       onNewTransaction(res.data);
       setForm({ userId: "", amount: "", deviceId: "", location: "" });
@@ -54,15 +53,11 @@ export default function TransactionForm({ onNewTransaction }) {
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    submitTransaction(form);
-  };
-
+  // Demo buttons only fill the form — they do NOT auto-submit.
+  // Review the values, then hit "Submit" yourself.
   const handleRandom = (highRisk) => {
     const txn = randomTransaction(highRisk);
     setForm(txn);
-    submitTransaction(txn);
   };
 
   return (
@@ -103,14 +98,14 @@ export default function TransactionForm({ onNewTransaction }) {
         </button>
       </div>
       <div className="demo-buttons">
-        <span className="demo-label">Quick demo:</span>
+        <span className="demo-label">Quick fill:</span>
         <button
           type="button"
           className="btn-demo btn-demo-safe"
           onClick={() => handleRandom(false)}
           disabled={loading}
         >
-          🟢 Simulate Normal Transaction
+          🟢 Fill Normal Transaction
         </button>
         <button
           type="button"
@@ -118,8 +113,9 @@ export default function TransactionForm({ onNewTransaction }) {
           onClick={() => handleRandom(true)}
           disabled={loading}
         >
-          🔴 Simulate Risky Transaction
+          🔴 Fill Risky Transaction
         </button>
+        <span className="demo-hint">(review, then hit Submit)</span>
       </div>
     </form>
   );

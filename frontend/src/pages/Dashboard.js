@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -33,6 +34,21 @@ export default function Dashboard() {
 
   const handleNewTransaction = (txn) => {
     setTransactions((prev) => [txn, ...prev]);
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm("Clear all transactions? This cannot be undone.")) {
+      return;
+    }
+    setClearing(true);
+    try {
+      await axios.delete(`${API_URL}/api/transactions`);
+      setTransactions([]);
+    } catch (err) {
+      alert("Error clearing transactions: " + err.message);
+    } finally {
+      setClearing(false);
+    }
   };
 
   const flaggedCount = transactions.filter((t) => t.status === "flagged").length;
@@ -68,16 +84,27 @@ export default function Dashboard() {
 
       <div className="table-header">
         <h3>Transactions</h3>
-        <div className="filter-tabs">
-          {FILTERS.map((f) => (
+        <div className="table-header-actions">
+          <div className="filter-tabs">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                className={`filter-tab ${filter === f.key ? "active" : ""}`}
+                onClick={() => setFilter(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {transactions.length > 0 && (
             <button
-              key={f.key}
-              className={`filter-tab ${filter === f.key ? "active" : ""}`}
-              onClick={() => setFilter(f.key)}
+              className="btn-clear"
+              onClick={handleClearAll}
+              disabled={clearing}
             >
-              {f.label}
+              {clearing ? "Clearing…" : "🗑️ Clear All"}
             </button>
-          ))}
+          )}
         </div>
       </div>
 

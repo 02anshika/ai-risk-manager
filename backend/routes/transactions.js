@@ -11,11 +11,13 @@ router.post("/", async (req, res) => {
   try {
     const { userId, amount, deviceId, location, timestamp } = req.body;
 
+    // Trim stray whitespace/tab characters (e.g. from Tab-key focus jumps)
+    // so the same user/device is recognized consistently across submissions.
     const txnDraft = {
-      userId,
+      userId: String(userId).trim(),
       amount,
-      deviceId,
-      location,
+      deviceId: String(deviceId).trim(),
+      location: String(location).trim(),
       timestamp: timestamp ? new Date(timestamp) : new Date(),
     };
 
@@ -70,6 +72,16 @@ router.get("/:id", async (req, res) => {
     const transaction = await Transaction.findById(req.params.id);
     if (!transaction) return res.status(404).json({ error: "Not found" });
     res.json(transaction);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/transactions — clear all transactions
+router.delete("/", async (req, res) => {
+  try {
+    const result = await Transaction.deleteMany({});
+    res.json({ deletedCount: result.deletedCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
